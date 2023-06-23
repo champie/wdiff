@@ -106,6 +106,7 @@ struct option const longopts[] = {
   {"terminal", 0, NULL, 't'},
   {"version", 0, NULL, 'v'},
   {"diff-input", 0, NULL, 'd'},
+  {"punct", 0, NULL, 'P'},
   {NULL, 0, NULL, 0}
 };
 
@@ -121,6 +122,7 @@ int no_wrapping;		/* end/restart strings at end of lines */
 int autopager;			/* if calling the pager automatically */
 int overstrike;			/* if using printer overstrikes */
 int overstrike_for_less;	/* if output aimed to the "less" program */
+int end_on_punct;       /* Consider punctuation as end of word */
 const char *user_delete_start;	/* user specified string for start of delete */
 const char *user_delete_end;	/* user specified string for end of delete */
 const char *user_insert_start;	/* user specified string for start of insert */
@@ -362,6 +364,18 @@ end_of_insert (void)
 }
 
 /*--------------------------------.
+| is character non word delimiter |
+`--------------------------------*/
+static int
+is_word_char(int c)
+{
+    if (end_on_punct)
+        if (ispunct(c))
+            return 0;
+    return !isspace(c);
+}
+
+/*--------------------------------.
 | Skip over white space on SIDE.  |
 `--------------------------------*/
 
@@ -371,7 +385,7 @@ skip_whitespace (SIDE * side)
   if (interrupted)
     longjmp (signal_label, 1);
 
-  while (isspace (side->character))
+  while (!is_word_char (side->character))
     side->character = getc (side->file);
 }
 
@@ -385,7 +399,7 @@ skip_word (SIDE * side)
   if (interrupted)
     longjmp (signal_label, 1);
 
-  while (side->character != EOF && !isspace (side->character))
+  while (side->character != EOF && is_word_char (side->character))
     side->character = getc (side->file);
   side->position++;
 }
@@ -400,7 +414,7 @@ copy_whitespace (SIDE * side, FILE * file)
   if (interrupted)
     longjmp (signal_label, 1);
 
-  while (isspace (side->character))
+  while (!is_word_char (side->character))
     {
 
       /* While changing lines, ensure we stop any special display prior
@@ -486,7 +500,7 @@ copy_word (SIDE * side, FILE * file)
   if (interrupted)
     longjmp (signal_label, 1);
 
-  while (side->character != EOF && !isspace (side->character))
+  while (side->character != EOF && is_word_char (side->character))
     {
 
       /* In printer mode, act according to copy_mode.  If copy_mode is not
@@ -1248,6 +1262,7 @@ Usage: %s [OPTION]... FILE1 FILE2\n\
 Mandatory arguments to long options are mandatory for short options too.\n"),
              stdout);
       fputs (_("  -C, --copyright            display copyright then exit\n"), stdout);
+      fputs (_("  -P, --punct                treat punctuation as word ends\n"), stdout);
       fputs (_("  -1, --no-deleted           inhibit output of deleted words\n"), stdout);
       fputs (_("  -2, --no-inserted          inhibit output of inserted words\n"), stdout);
       fputs (_("  -3, --no-common            inhibit output of common words\n"), stdout);
@@ -1338,6 +1353,10 @@ main (int argc, char *const argv[])
       case 'C':
 	print_copyright ();
 	exit (EXIT_SUCCESS);
+
+      case 'P':
+    end_on_punct = 1;
+    break;
 
       case 'a':
 	autopager = 1;
